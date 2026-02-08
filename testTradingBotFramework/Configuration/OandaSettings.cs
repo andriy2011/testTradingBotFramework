@@ -1,6 +1,7 @@
 // ============================================================================
 // File: OandaSettings.cs
 // Purpose: Configuration POCO for the Oanda v20 REST / Streaming API.
+// Reference: https://developer.oanda.com/rest-live-v20/introduction/
 // Binding: Bound from the "Oanda" section of appsettings.json via
 //          IOptions<OandaSettings> in the DI container.
 // Notes: Provides computed read-only properties (RestBaseUrl, StreamBaseUrl)
@@ -8,6 +9,7 @@
 //        whether the practice (demo) or live environment is selected.
 //        UsePractice defaults to true so new deployments never accidentally
 //        trade against a live Oanda account.
+//        Despite being called "v20 API", actual endpoints use /v3/ path prefix.
 // ============================================================================
 
 namespace testTradingBotFramework.Configuration;

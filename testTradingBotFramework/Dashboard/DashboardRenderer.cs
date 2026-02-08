@@ -117,7 +117,7 @@ public class DashboardRenderer
 
     private Panel BuildAccountPanel()
     {
-        var rows = new Rows(new Text(""));
+        var renderables = new List<IRenderable>();
 
         foreach (var exchange in Enum.GetValues<ExchangeName>())
         {
@@ -125,15 +125,29 @@ public class DashboardRenderer
             var exchangeSnap = _accountingService.GetExchangePnLSnapshot(exchange);
             var (_, _, diverged) = _accountingService.GetReconciliationReport(exchange);
 
-            var status = diverged ? "[red]DIVERGED[/]" : "[green]OK[/]";
+            // Determine reconciliation status with proper handling for missing exchange data
+            string status;
+            if (exchangeSnap is null)
+            {
+                status = "[yellow]NO DATA[/]";
+            }
+            else if (diverged)
+            {
+                status = "[red]DIVERGED[/]";
+            }
+            else
+            {
+                status = "[green]OK[/]";
+            }
 
-            rows = new Rows(
-                new Markup($"[bold]{exchange}[/]"),
-                new Markup($"  Local P&L: {local.NetPnL:F4} ({local.TotalTrades} trades, fees: {local.TotalFees:F4})"),
-                new Markup($"  Exchange P&L: {(exchangeSnap is not null ? exchangeSnap.UnrealizedPnL.ToString("F4") : "N/A")}"),
-                new Markup($"  Reconciliation: {status}"),
-                new Text(""));
+            renderables.Add(new Markup($"[bold]{exchange}[/]"));
+            renderables.Add(new Markup($"  Local P&L: {local.NetPnL:F4} ({local.TotalTrades} trades, fees: {local.TotalFees:F4})"));
+            renderables.Add(new Markup($"  Exchange P&L: {(exchangeSnap is not null ? exchangeSnap.UnrealizedPnL.ToString("F4") : "N/A")}"));
+            renderables.Add(new Markup($"  Reconciliation: {status}"));
+            renderables.Add(new Text(""));
         }
+
+        var rows = new Rows(renderables);
 
         return new Panel(rows)
             .Header("[bold yellow]Account Summary[/]")
