@@ -1,3 +1,17 @@
+// =============================================================================
+// BinancePriceMonitor.cs
+// Real-time price monitor for Binance USD-M Futures using WebSocket book ticker.
+//
+// Architecture:
+//   - Per-symbol WebSocket subscriptions via Binance.Net SDK
+//   - Each subscription receives best bid/ask updates in real-time
+//   - ConcurrentDictionary caches latest prices and tracks subscription handles
+//   - Deduplicates subscriptions (skip if already subscribed)
+//   - On unsubscribe, closes the WebSocket and cleans up the cache
+//
+// Thread safety: ConcurrentDictionary for both prices and subscriptions.
+// =============================================================================
+
 using System.Collections.Concurrent;
 using Binance.Net.Interfaces.Clients;
 using CryptoExchange.Net.Objects.Sockets;
@@ -6,11 +20,19 @@ using testTradingBotFramework.Models.Enums;
 
 namespace testTradingBotFramework.Services.PriceMonitoring.Binance;
 
+/// <summary>
+/// Binance WebSocket-based price monitor. Subscribes to the book ticker stream
+/// for each symbol on USD-M Futures, providing real-time best bid/ask updates.
+/// </summary>
 public class BinancePriceMonitor : IPriceMonitor
 {
     private readonly IBinanceSocketClient _socketClient;
     private readonly ILogger<BinancePriceMonitor> _logger;
+
+    /// <summary>Cache of the most recent price update per symbol.</summary>
     private readonly ConcurrentDictionary<string, PriceUpdateEventArgs> _latestPrices = new();
+
+    /// <summary>Active WebSocket subscription handles, keyed by symbol for cleanup.</summary>
     private readonly ConcurrentDictionary<string, UpdateSubscription> _subscriptions = new();
 
     public event EventHandler<PriceUpdateEventArgs>? OnPriceUpdate;

@@ -1,3 +1,17 @@
+// -----------------------------------------------------------------------
+// DashboardRenderer.cs
+//
+// Real-time console dashboard renderer using the Spectre.Console library.
+// Produces a 2x2 grid layout (IRenderable) containing four panels:
+//   Top-left:     Open Positions  -- all active positions with color-coded P&L
+//   Top-right:    Account Summary -- per-exchange P&L and reconciliation status
+//   Bottom-left:  Live Prices     -- bid/ask/spread from every price monitor
+//   Bottom-right: System Status   -- uptime counter and background worker status
+//
+// The Render() method is called repeatedly by DashboardWorker, which feeds
+// the returned IRenderable into AnsiConsole.Live() for flicker-free updates.
+// -----------------------------------------------------------------------
+
 using Spectre.Console;
 using Spectre.Console.Rendering;
 using testTradingBotFramework.Models.Enums;
@@ -7,11 +21,30 @@ using testTradingBotFramework.Services.PriceMonitoring;
 
 namespace testTradingBotFramework.Dashboard;
 
+/// <summary>
+/// Builds a rich console dashboard composed of four panels arranged in a 2x2 grid.
+/// Each panel aggregates data from a different domain service (positions, accounting,
+/// price monitoring) and formats it with Spectre.Console markup for colored output.
+/// This class is stateless per render call -- it reads live data on every invocation.
+/// </summary>
 public class DashboardRenderer
 {
+    /// <summary>Service that tracks all open trading positions across exchanges.</summary>
     private readonly IPositionManager _positionManager;
+
+    /// <summary>Service providing local and exchange-side P&amp;L snapshots plus reconciliation.</summary>
     private readonly IAccountingService _accountingService;
+
+    /// <summary>
+    /// Collection of price monitors keyed by exchange name. Each monitor exposes
+    /// real-time bid/ask prices for every symbol it tracks on that exchange.
+    /// </summary>
     private readonly IEnumerable<KeyValuePair<ExchangeName, IPriceMonitor>> _priceMonitors;
+
+    /// <summary>
+    /// Timestamp captured once at construction time, used to calculate the uptime
+    /// displayed in the System Status panel.
+    /// </summary>
     private readonly DateTimeOffset _startTime = DateTimeOffset.UtcNow;
 
     public DashboardRenderer(

@@ -1,3 +1,24 @@
+// =============================================================================
+// OandaPriceMonitor.cs
+// Real-time price monitor for Oanda forex using Server-Sent Events (SSE) streaming.
+//
+// Architecture:
+//   - Unlike Binance (per-symbol WebSocket), Oanda uses a single HTTP stream
+//     for all instruments, specified as a comma-separated query parameter
+//   - When symbols are added/removed, the entire stream must be restarted
+//     with the updated instrument list (RestartStreamAsync)
+//   - RunStreamAsync reads JSON lines, filters for Type=="PRICE" (ignoring
+//     HEARTBEAT messages), parses bid/ask, and fires OnPriceUpdate
+//   - Auto-reconnects with 5-second backoff on disconnection
+//
+// Thread safety:
+//   - Lock (_symbolLock) protects the _subscribedSymbols HashSet
+//   - ConcurrentDictionary for _latestPrices cache
+//   - CancellationTokenSource for clean stream teardown
+//
+// Implements IDisposable to cancel the stream on shutdown.
+// =============================================================================
+
 using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -9,15 +30,29 @@ using testTradingBotFramework.Models.Enums;
 
 namespace testTradingBotFramework.Services.PriceMonitoring.Oanda;
 
+/// <summary>
+/// Oanda SSE streaming price monitor. Manages a single HTTP streaming connection
+/// for all subscribed instruments, with automatic reconnection on failure.
+/// </summary>
 public class OandaPriceMonitor : IPriceMonitor, IDisposable
 {
     private readonly OandaApiClient _apiClient;
     private readonly OandaSettings _settings;
     private readonly ILogger<OandaPriceMonitor> _logger;
+
+    /// <summary>Cache of the most recent price update per symbol.</summary>
     private readonly ConcurrentDictionary<string, PriceUpdateEventArgs> _latestPrices = new();
+
+    /// <summary>Set of currently subscribed instrument symbols (e.g., "EUR_USD").</summary>
     private readonly HashSet<string> _subscribedSymbols = [];
+
+    /// <summary>Lock protecting _subscribedSymbols (HashSet is not thread-safe).</summary>
     private readonly Lock _symbolLock = new();
+
+    /// <summary>Cancellation source for the active streaming task.</summary>
     private CancellationTokenSource? _streamCts;
+
+    /// <summary>The currently running streaming task (reads JSON lines from Oanda).</summary>
     private Task? _streamTask;
 
     public event EventHandler<PriceUpdateEventArgs>? OnPriceUpdate;
